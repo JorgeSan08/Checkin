@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CheckIN — Control de Asistencia</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0A1628;
+      --accent: #378ADD;
+      --accent-light: #E6F1FB;
+      --success: #1D9E75;
+      --success-light: #E1F5EE;
+      --danger: #E24B4A;
+      --danger-light: #FCEBEB;
+      --amber: #BA7517;
+      --amber-light: #FAEEDA;
+      --bg: #ffffff;
+      --bg2: #f5f5f3;
+      --text: #1a1a18;
+      --text2: #6b6b67;
+      --border: rgba(0,0,0,0.12);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#1c1c1e; --bg2:#2c2c2e; --text:#f2f2f7; --text2:#8e8e93; --border:rgba(255,255,255,0.12); }
+    }
+    html,body { height:100%; }
+    body { font-family:var(--font); background:var(--bg); color:var(--text); -webkit-tap-highlight-color:transparent; overflow-x:hidden; }
+
+    .screen { display:none; min-height:100vh; }
+    .screen.active { display:block; }
+
+    /* TOPBAR */
+    .topbar { background:var(--navy); color:#fff; display:flex; align-items:center; justify-content:space-between; padding:14px 20px; position:sticky; top:0; z-index:10; }
+    .topbar-title { font-size:17px; font-weight:500; }
+    .topbar-sub { font-size:12px; opacity:.6; margin-top:2px; }
+    .topbar-btn { background:rgba(255,255,255,.12); border:none; color:#fff; padding:8px 14px; border-radius:var(--radius-md); font-size:13px; cursor:pointer; display:flex; align-items:center; gap:5px; font-family:var(--font); }
+    .topbar-btn:active { background:rgba(255,255,255,.25); }
+
+    /* CLOCK */
+    .clock-block { background:var(--navy); color:#fff; text-align:center; padding:22px 20px 20px; }
+    .clock-time { font-size:52px; font-weight:200; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+    .clock-date { font-size:13px; opacity:.55; margin-top:3px; }
+
+    /* SCHEDULE BAR */
+    .schedule-bar { background:rgba(255,255,255,.08); display:flex; justify-content:center; gap:0; padding:10px 16px 14px; flex-wrap:wrap; gap:6px 16px; }
+    .sched-item { font-size:12px; color:rgba(255,255,255,.7); display:flex; align-items:center; gap:4px; }
+    .sched-dot { width:6px; height:6px; border-radius:50%; }
+    .sched-dot.entry { background:#5DCAA5; }
+    .sched-dot.lunch-out { background:#FAC775; }
+    .sched-dot.lunch-in { background:#85B7EB; }
+    .sched-dot.exit { background:#F09595; }
+
+    /* CHECADOR BODY */
+    .checador-body { padding:16px; max-width:480px; margin:0 auto; }
+
+    /* STATUS CHIPS */
+    .status-chips { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .chip { display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border-radius:20px; font-size:12px; font-weight:500; border:0.5px solid var(--border); }
+    .chip i { font-size:13px; }
+    .chip.done  { background:var(--success-light); color:var(--success); border-color:var(--success); }
+    .chip.pending { background:var(--bg2); color:var(--text2); }
+    .chip.active-now { background:var(--accent-light); color:var(--accent); border-color:var(--accent); }
+
+    /* CODE CARD */
+    .code-card { background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:20px 18px 16px; text-align:center; margin-bottom:14px; }
+    .code-label { font-size:13px; color:var(--text2); margin-bottom:12px; }
+    .code-dots { display:flex; justify-content:center; gap:12px; margin-bottom:8px; }
+    .code-dot { width:16px; height:16px; border-radius:50%; background:var(--border); border:1.5px solid var(--border); transition:background .15s; }
+    .code-dot.filled { background:var(--navy); border-color:var(--navy); }
+    .emp-preview { font-size:13px; color:var(--text2); min-height:18px; margin-top:4px; }
+
+    /* NEXT ACTION HINT */
+    .next-action-hint { background:var(--accent-light); color:var(--accent); border-radius:var(--radius-md); padding:8px 12px; font-size:13px; font-weight:500; text-align:center; margin-bottom:12px; display:none; }
+    .next-action-hint.visible { display:block; }
+
+    /* NUMPAD */
+    .numpad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+    .num-btn { background:var(--bg2); border:0.5px solid var(--border); border-radius:var(--radius-md); padding:20px 0; font-size:24px; font-weight:300; color:var(--text); cursor:pointer; text-align:center; transition:background .1s,transform .08s; -webkit-user-select:none; user-select:none; }
+    .num-btn:active { background:var(--accent-light); transform:scale(.95); }
+    .num-btn.del { font-size:20px; color:var(--text2); }
+
+    /* ACTION BUTTONS */
+    .action-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .btn-entrada,.btn-salida { border-radius:var(--radius-md); padding:16px; font-size:16px; font-weight:500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; border:none; transition:opacity .15s,transform .1s; font-family:var(--font); }
+    .btn-entrada { background:var(--success); color:#fff; }
+    .btn-salida  { background:var(--danger-light); color:var(--danger); border:0.5px solid var(--danger); }
+    .btn-entrada:active,.btn-salida:active { transform:scale(.97); opacity:.85; }
+    .btn-entrada:disabled,.btn-salida:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+
+    /* TOAST */
+    .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(100px); background:var(--navy); color:#fff; padding:14px 26px; border-radius:var(--radius-lg); font-size:15px; font-weight:500; z-index:9999; transition:transform .3s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; max-width:90vw; text-align:center; pointer-events:none; }
+    .toast.show { transform:translateX(-50%) translateY(0); }
+    .toast.success { background:var(--success); }
+    .toast.error   { background:var(--danger); }
+    .toast.warning { background:var(--amber); }
+
+    /* LOGIN */
+    .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 20px; background:var(--bg2); }
+    .login-card { background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:32px 28px; width:100%; max-width:360px; }
+    .login-icon { width:50px; height:50px; background:var(--navy); border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; margin-bottom:16px; color:#fff; font-size:24px; }
+    .login-title { font-size:20px; font-weight:500; margin-bottom:4px; }
+    .login-sub   { font-size:13px; color:var(--text2); margin-bottom:24px; }
+
+    .field-group { margin-bottom:14px; }
+    .field-label { font-size:12px; color:var(--text2); margin-bottom:5px; display:block; }
+    .field-input { width:100%; padding:11px 13px; border:0.5px solid var(--border); border-radius:var(--radius-md); font-size:15px; background:var(--bg2); color:var(--text); font-family:var(--font); appearance:none; }
+    .field-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(55,138,221,.15); }
+
+    .btn-primary { width:100%; background:var(--navy); color:#fff; border:none; border-radius:var(--radius-md); padding:13px; font-size:15px; font-weight:500; cursor:pointer; font-family:var(--font); }
+    .btn-primary:hover { opacity:.88; }
+    .form-err { font-size:13px; color:var(--danger); margin-top:8px; min-height:18px; text-align:center; }
+    .btn-ghost { background:none; border:none; color:var(--text2); font-size:13px; cursor:pointer; font-family:var(--font); display:flex; align-items:center; gap:4px; margin:0 auto; padding:4px; }
+
+    /* ADMIN NAV */
+    .admin-nav { display:flex; border-bottom:0.5px solid var(--border); background:var(--bg); padding:0 12px; position:sticky; top:57px; z-index:9; overflow-x:auto; }
+    .admin-nav::-webkit-scrollbar { display:none; }
+    .nav-tab { padding:13px 16px; font-size:14px; color:var(--text2); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; font-family:var(--font); }
+    .nav-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:500; }
+
+    .tab-panel { display:none; padding:16px; max-width:860px; margin:0 auto; }
+    .tab-panel.active { display:block; }
+
+    /* METRICS */
+    .metrics-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+    .metric-card { background:var(--bg2); border-radius:var(--radius-md); padding:14px 12px; text-align:center; }
+    .metric-val { font-size:28px; font-weight:500; }
+    .metric-lbl { font-size:12px; color:var(--text2); margin-top:2px; }
+
+    /* TABLES */
+    .section-title { font-size:12px; font-weight:500; color:var(--text2); text-transform:uppercase; letter-spacing:.6px; margin-bottom:10px; }
+    .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:0.5px solid var(--border); border-radius:var(--radius-lg); }
+    table { width:100%; border-collapse:collapse; font-size:13px; min-width:500px; }
+    th { text-align:left; padding:8px 12px; font-size:11px; font-weight:500; color:var(--text2); border-bottom:0.5px solid var(--border); white-space:nowrap; background:var(--bg2); }
+    td { padding:11px 12px; border-bottom:0.5px solid var(--border); color:var(--text); }
+    tr:last-child td { border-bottom:none; }
+
+    .badge { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:500; white-space:nowrap; }
+    .badge-success { background:var(--success-light); color:var(--success); }
+    .badge-danger  { background:var(--danger-light);  color:var(--danger);  }
+    .badge-amber   { background:var(--amber-light);   color:var(--amber);   }
+    .badge-blue    { background:var(--accent-light);  color:var(--accent);  }
+    .badge-gray    { background:var(--bg2); color:var(--text2); border:0.5px solid var(--border); }
+
+    code { font-size:12px; color:var(--text2); font-family:'Courier New',monospace; }
+
+    /* EMPLOYEES */
+    .emp-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+    .btn-add { background:var(--navy); color:#fff; border:none; border-radius:var(--radius-md); padding:9px 15px; font-size:13px; cursor:pointer; font-family:var(--font); display:flex; align-items:center; gap:5px; }
+    .emp-card { display:flex; align-items:center; gap:12px; padding:13px 14px; border:0.5px solid var(--border); border-radius:var(--radius-md); margin-bottom:8px; background:var(--bg); }
+    .emp-avatar { width:42px; height:42px; border-radius:50%; background:var(--accent-light); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:500; color:var(--accent); flex-shrink:0; }
+    .emp-name { font-size:14px; font-weight:500; }
+    .emp-code { font-size:12px; color:var(--text2); margin-top:2px; }
+    .emp-actions { margin-left:auto; display:flex; gap:8px; }
+    .btn-icon { background:none; border:none; cursor:pointer; font-size:18px; padding:4px; border-radius:var(--radius-md); display:flex; align-items:center; }
+    .btn-icon.edit { color:var(--accent); }
+    .btn-icon.del  { color:var(--danger); }
+
+    /* MODAL */
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; align-items:center; justify-content:center; padding:20px; }
+    .modal-backdrop.open { display:flex; }
+    .modal { background:var(--bg); border-radius:var(--radius-lg); padding:24px; width:100%; max-width:380px; border:0.5px solid var(--border); }
+    .modal-title { font-size:16px; font-weight:500; margin-bottom:16px; }
+    .modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+    .btn-cancel { background:var(--bg2); color:var(--text); border:0.5px solid var(--border); border-radius:var(--radius-md); padding:10px 18px; font-size:14px; cursor:pointer; font-family:var(--font); }
+    .btn-save   { background:var(--navy); color:#fff; border:none; border-radius:var(--radius-md); padding:10px 18px; font-size:14px; cursor:pointer; font-family:var(--font); }
+
+    /* REPORTS */
+    .report-filter { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+    .filter-sel { padding:9px 12px; border:0.5px solid var(--border); border-radius:var(--radius-md); font-size:13px; background:var(--bg2); color:var(--text); cursor:pointer; font-family:var(--font); }
+    .export-btn { background:none; border:0.5px solid var(--border); border-radius:var(--radius-md); padding:9px 14px; font-size:13px; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:5px; margin-left:auto; font-family:var(--font); }
+    .export-btn:hover { background:var(--bg2); }
+
+    /* CONFIG */
+    .config-section { border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:20px; margin-bottom:14px; }
+    .config-title { font-size:14px; font-weight:500; margin-bottom:14px; }
+    .time-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+    @media(min-width:600px){
+      .checador-body{padding:24px;}
+      .numpad{gap:12px;}
+      .num-btn{padding:22px 0;font-size:26px;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== CHECADOR ===== -->
+<div class="screen active" id="screen-checador">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">CheckIN</div>
+      <div class="topbar-sub" id="topbar-empresa">Mi Empresa</div>
+    </div>
+    <button class="topbar-btn" onclick="goAdmin()"><i class="ti ti-settings"></i> Admin</button>
+  </div>
+
+  <div class="clock-block">
+    <div class="clock-time" id="clock">00:00:00</div>
+    <div class="clock-date" id="clock-date">—</div>
+    <div class="schedule-bar" id="schedule-bar"></div>
+  </div>
+
+  <div class="checador-body">
+    <div class="status-chips" id="status-chips" style="display:none"></div>
+
+    <div class="next-action-hint" id="next-hint"></div>
+
+    <div class="code-card">
+      <div class="code-label">Ingresa tu código de empleado</div>
+      <div class="code-dots">
+        <span class="code-dot" id="d0"></span><span class="code-dot" id="d1"></span>
+        <span class="code-dot" id="d2"></span><span class="code-dot" id="d3"></span>
+      </div>
+      <div class="emp-preview" id="emp-preview"></div>
+    </div>
+
+    <div class="numpad">
+      <button class="num-btn" onclick="numPress('1')">1</button>
+      <button class="num-btn" onclick="numPress('2')">2</button>
+      <button class="num-btn" onclick="numPress('3')">3</button>
+      <button class="num-btn" onclick="numPress('4')">4</button>
+      <button class="num-btn" onclick="numPress('5')">5</button>
+      <button class="num-btn" onclick="numPress('6')">6</button>
+      <button class="num-btn" onclick="numPress('7')">7</button>
+      <button class="num-btn" onclick="numPress('8')">8</button>
+      <button class="num-btn" onclick="numPress('9')">9</button>
+      <button class="num-btn del" onclick="numDel()"><i class="ti ti-backspace"></i></button>
+      <button class="num-btn" onclick="numPress('0')">0</button>
+      <button class="num-btn del" onclick="numClear()"><i class="ti ti-x"></i></button>
+    </div>
+
+    <div class="action-row">
+      <button class="btn-entrada" id="btn-entrada" onclick="registrar('entrada')"><i class="ti ti-login"></i> Entrada</button>
+      <button class="btn-salida"  id="btn-salida"  onclick="registrar('salida')"><i class="ti ti-logout"></i> Salida</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOGIN ===== -->
+<div class="screen" id="screen-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-icon"><i class="ti ti-lock"></i></div>
+      <div class="login-title">Panel de administrador</div>
+      <div class="login-sub">Ingresa tus credenciales para continuar</div>
+      <div class="field-group">
+        <label class="field-label">Usuario</label>
+        <input class="field-input" type="text" id="login-user" placeholder="admin" autocomplete="username"/>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Contraseña</label>
+        <input class="field-input" type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Entrar</button>
+      <div class="form-err" id="login-err"></div>
+      <div style="text-align:center;margin-top:16px;">
+        <button class="btn-ghost" onclick="showScreen('checador')"><i class="ti ti-arrow-left"></i> Volver al checador</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN ===== -->
+<div class="screen" id="screen-admin">
+  <div class="topbar">
+    <div><div class="topbar-title">Administrador</div><div class="topbar-sub">Panel de control</div></div>
+    <button class="topbar-btn" onclick="logout()"><i class="ti ti-logout"></i> Salir</button>
+  </div>
+  <nav class="admin-nav">
+    <button class="nav-tab active" onclick="switchTab('hoy',this)">Hoy</button>
+    <button class="nav-tab" onclick="switchTab('reportes',this)">Reportes</button>
+    <button class="nav-tab" onclick="switchTab('empleados',this)">Empleados</button>
+    <button class="nav-tab" onclick="switchTab('config',this)">Config</button>
+  </nav>
+  <div style="padding:10px 16px 0;display:flex;align-items:center;gap:8px">
+    <i class="ti ti-building-hospital" style="color:var(--text2)"></i>
+    <select class="filter-sel" id="adm-sede" onchange="setAdminSede(this.value)">
+      <option value="">Ambas sedes</option>
+      <option value="lab">Laboratorio</option>
+      <option value="clinica">Clínica</option>
+    </select>
+  </div>
+
+  <!-- TAB HOY -->
+  <div class="tab-panel active" id="tab-hoy">
+    <div class="metrics-grid" id="metrics-grid"></div>
+    <div class="section-title">Registros de hoy</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Empleado</th><th>Cód.</th>
+          <th>Entrada</th><th>Salida comida</th>
+          <th>Regreso comida</th><th>Salida</th>
+          <th>Estatus</th><th></th>
+        </tr></thead>
+        <tbody id="today-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB REPORTES -->
+  <div class="tab-panel" id="tab-reportes">
+    <div class="report-filter">
+      <select class="filter-sel" id="rep-emp" onchange="renderReportes()"><option value="">Todos los empleados</option></select>
+      <select class="filter-sel" id="rep-mes" onchange="renderReportes()"></select>
+      <button class="export-btn" onclick="exportCSV()"><i class="ti ti-download"></i> Exportar CSV</button>
+    </div>
+    <div class="section-title">Resumen mensual</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Empleado</th><th>Asistencias</th><th>Ausencias</th><th>Retardos entrada</th><th>Retardos regreso</th><th>Horas prom/día</th></tr></thead>
+        <tbody id="rep-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:20px;" class="section-title">Detalle de registros</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Empleado</th><th>Entrada</th><th>Sal. comida</th><th>Reg. comida</th><th>Salida</th><th>Hrs netas</th><th>Estado</th></tr></thead>
+        <tbody id="det-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB EMPLEADOS -->
+  <div class="tab-panel" id="tab-empleados">
+    <div class="emp-header">
+      <div class="section-title" style="margin-bottom:0">Empleados registrados</div>
+      <button class="btn-add" onclick="openAddEmp()"><i class="ti ti-plus"></i> Nuevo empleado</button>
+    </div>
+    <div id="emp-list"></div>
+  </div>
+
+  <!-- TAB CONFIG -->
+  <div class="tab-panel" id="tab-config">
+    <div class="config-section">
+      <div class="config-title">Configuración general</div>
+      <div class="field-group">
+        <label class="field-label">Nombre de la empresa</label>
+        <input class="field-input" type="text" id="cfg-empresa" placeholder="Mi Empresa"/>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Tolerancia de retardo (minutos)</label>
+        <input class="field-input" type="number" id="cfg-tolerancia" value="15" min="0" max="60"/>
+      </div>
+    </div>
+
+    <div class="config-section">
+      <div class="config-title">Respaldo de esta tablet</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Sube a la nube los registros y empleados que solo existan en esta tablet. No borra ni modifica nada de lo que ya está en la nube. Úsalo antes de cambiar de link.</div>
+      <button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="subirLocal()">Subir lo que falte a la nube</button>
+      <div id="respaldo-res" style="font-size:13px;margin-top:10px"></div>
+    </div>
+
+    <div class="config-section">
+      <div class="config-title">Sede de ESTA tablet</div>
+      <div class="field-group">
+        <select class="field-input" id="cfg-sede" onchange="setTabletSede(this.value)">
+          <option value="lab">Laboratorio</option>
+          <option value="clinica">Clínica</option>
+        </select>
+        <div style="font-size:12px;color:var(--text2);margin-top:6px">Esta tablet solo aceptará códigos de empleados de esta sede. Se guarda en este dispositivo.</div>
+      </div>
+    </div>
+
+    <div class="config-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="config-title" style="margin:0"><i class="ti ti-clock" style="vertical-align:-2px;margin-right:5px"></i>Horarios de trabajo</div>
+        <button class="btn-add" onclick="openAddHorario()"><i class="ti ti-plus"></i> Nuevo</button>
+      </div>
+      <div id="horarios-list"></div>
+    </div>
+
+
+    <div class="config-section">
+      <div class="config-title">Cambiar contraseña de administrador</div>
+      <div class="field-group">
+        <label class="field-label">Nueva contraseña</label>
+        <input class="field-input" type="password" id="cfg-pass1" placeholder="Nueva contraseña"/>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Confirmar contraseña</label>
+        <input class="field-input" type="password" id="cfg-pass2" placeholder="Repetir contraseña"/>
+      </div>
+      <div class="form-err" id="pass-err" style="text-align:left;margin-bottom:8px;"></div>
+      <button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="changePass()">Actualizar contraseña</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL HORARIO ===== -->
+<div class="modal-backdrop" id="modal-horario">
+  <div class="modal">
+    <div class="modal-title" id="modal-horario-title">Nuevo horario</div>
+    <div class="field-group">
+      <label class="field-label">Nombre del horario</label>
+      <input class="field-input" type="text" id="hor-nombre" placeholder="Ej: Horario Practicantes"/>
+    </div>
+    <div class="time-grid">
+      <div class="field-group">
+        <label class="field-label">Entrada</label>
+        <input class="field-input" type="time" id="hor-entrada" value="09:00"/>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Salida</label>
+        <input class="field-input" type="time" id="hor-salida" value="18:00"/>
+      </div>
+    </div>
+    <div class="field-group" style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:var(--radius-md)">
+      <input type="checkbox" id="hor-tiene-comida" style="width:18px;height:18px;cursor:pointer"/>
+      <label for="hor-tiene-comida" style="font-size:14px;cursor:pointer">¿Tiene hora de comida?</label>
+    </div>
+    <div id="hor-comida-wrap" style="display:none">
+      <div class="time-grid" style="margin-top:12px">
+        <div class="field-group">
+          <label class="field-label">Sale a comer</label>
+          <input class="field-input" type="time" id="hor-sal-comida" value="14:00"/>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Regresa de comer</label>
+          <input class="field-input" type="time" id="hor-reg-comida" value="15:00"/>
+        </div>
+      </div>
+    </div>
+    <div class="field-group" style="margin-top:12px">
+      <label class="field-label">Tolerancia de retardo (min). Vacío = usa la general</label>
+      <input class="field-input" type="number" id="hor-tol" min="0" max="60" placeholder="General"/>
+    </div>
+    <div class="field-group" style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:var(--radius-md)">
+      <input type="checkbox" id="hor-sab-on" style="width:18px;height:18px;cursor:pointer"/>
+      <label for="hor-sab-on" style="font-size:14px;cursor:pointer">¿Trabaja sábado con horario distinto?</label>
+    </div>
+    <div id="hor-sab-wrap" style="display:none">
+      <div class="time-grid" style="margin-top:12px">
+        <div class="field-group"><label class="field-label">Sábado: entrada</label>
+          <input class="field-input" type="time" id="hor-sab-entrada" value="08:50"/></div>
+        <div class="field-group"><label class="field-label">Sábado: salida</label>
+          <input class="field-input" type="time" id="hor-sab-salida" value="13:00"/></div>
+      </div>
+      <div class="field-group" style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg2);border-radius:var(--radius-md)">
+        <input type="checkbox" id="hor-sab-comida-on" style="width:18px;height:18px;cursor:pointer"/>
+        <label for="hor-sab-comida-on" style="font-size:14px;cursor:pointer">Sábado con descanso/comida</label>
+      </div>
+      <div id="hor-sab-comida-wrap" style="display:none">
+        <div class="time-grid" style="margin-top:12px">
+          <div class="field-group"><label class="field-label">Sale</label>
+            <input class="field-input" type="time" id="hor-sab-sal-comida" value="10:30"/></div>
+          <div class="field-group"><label class="field-label">Regresa</label>
+            <input class="field-input" type="time" id="hor-sab-reg-comida" value="11:00"/></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModalHorario()">Cancelar</button>
+      <button class="btn-save" onclick="saveHorario()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL BORRAR REGISTRO ===== -->
+<div class="modal-backdrop" id="modal-del-reg">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-trash" style="color:var(--danger)"></i>Borrar registro</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:14px">¿Qué campo deseas borrar o limpiar de este registro?</div>
+    <div id="del-reg-campos"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModalDelReg()">Cancelar</button>
+      <button class="btn-save" style="background:var(--danger)" onclick="confirmarDelReg()">Borrar seleccionado</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EMPLEADO ===== -->
+<div class="modal-backdrop" id="modal-emp">
+  <div class="modal">
+    <div class="modal-title" id="modal-emp-title">Nuevo empleado</div>
+    <div class="field-group">
+      <label class="field-label">Nombre completo</label>
+      <input class="field-input" type="text" id="emp-nombre" placeholder="Ej: Ana García"/>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Código de empleado (4 dígitos)</label>
+      <input class="field-input" type="tel" id="emp-codigo" placeholder="Ej: 1234" maxlength="4"/>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Departamento / Puesto</label>
+      <input class="field-input" type="text" id="emp-dept" placeholder="Ej: Ventas"/>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Sede</label>
+      <select class="field-input" id="emp-sede">
+        <option value="lab">Laboratorio</option>
+        <option value="clinica">Clínica</option>
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Horario asignado</label>
+      <select class="field-input" id="emp-horario"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save"   onclick="saveEmp()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DB_KEY = 'checkin_v2';
+let editingEmpIdx = null;
+
+function loadDB(){
+  try{ return JSON.parse(localStorage.getItem(DB_KEY)) || defaultDB(); }
+  catch(e){ return defaultDB(); }
+}
+function saveDB(db){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+function defaultDB(){
+  return {
+    config:{
+      empresa:'Mi Empresa',
+      tolerancia:15,
+      adminPass:'admin123',
+    },
+    horarios:[
+      {id:'h1', nombre:'Horario General', horaEntrada:'09:00', horaSalidaComida:'14:00', horaRegresoComida:'15:00', horaSalida:'18:00', tieneComida:true}
+    ],
+    empleados:[],
+    registros:[]
+  };
+}
+
+let db = loadDB();
+let codigoIngresado = '';
+
+/* ── SEDES ── */
+const SEDE_KEY='checkin_sede';
+const SEDES={lab:'Laboratorio',clinica:'Clínica'};
+function tabletSede(){ try{ return localStorage.getItem(SEDE_KEY)||'lab'; }catch(e){ return 'lab'; } }
+function empSede(e){ return (e&&e.sede)||'lab'; }          // empleados viejos = Laboratorio
+let adminSede='';                                          // '' = ambas
+function sedeOkAdmin(e){ return !adminSede || empSede(e)===adminSede; }
+function empDe(codigo){ return db.empleados.find(e=>e.codigo===codigo); }
+function regSede(r){ return r.sede || empSede(empDe(r.codigo)); }
+function dowOf(fecha){ const [y,m,d]=fecha.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
+// Horario efectivo del día (sábado puede tener horario propio)
+function efectivo(h,fecha){
+  if(h && fecha && dowOf(fecha)===6 && h.sab && h.sab.activo) return {...h, ...h.sab, nombre:h.nombre, id:h.id, tolerancia:h.tolerancia};
+  return h;
+}
+function esLaboral(h,fecha){
+  const d=dowOf(fecha);
+  if(d===0) return false;
+  if(d===6) return !!(h && h.sab && h.sab.activo);
+  return true;
+}
+function tolDe(h){ return (h && h.tolerancia!=='' && h.tolerancia!=null && !isNaN(h.tolerancia)) ? Number(h.tolerancia) : null; }
+function setTabletSede(v){ try{ localStorage.setItem(SEDE_KEY,v); }catch(e){} showToast('Esta tablet ahora es: '+SEDES[v],'success'); updateClock(); numClear(); }
+function setAdminSede(v){
+  adminSede=v;
+  const act=document.querySelector('.tab-panel.active')?.id;
+  if(act==='tab-hoy') renderHoy();
+  if(act==='tab-reportes'){ fillRepFilter(); }
+  if(act==='tab-empleados') renderEmpleados();
+}
+
+/* ── RELOJ ── */
+function updateClock(){
+  const n = new Date();
+  document.getElementById('clock').textContent = n.toLocaleTimeString('es-MX');
+  document.getElementById('clock-date').textContent =
+    n.toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric'})+' · '+SEDES[tabletSede()];
+}
+setInterval(updateClock,1000);
+updateClock();
+
+/* ── BARRA DE HORARIOS ── */
+function getHorarioEmp(emp, fecha){
+  let h;
+  if(!emp) h = db.horarios?.[0] || null;
+  else h = (db.horarios||[]).find(x=>x.id===emp.horarioId) || db.horarios?.[0] || null;
+  return efectivo(h, fecha||todayStr());
+}
+function renderScheduleBar(emp){
+  const h = getHorarioEmp(emp) || db.horarios?.[0];
+  if(!h){ document.getElementById('schedule-bar').innerHTML=''; return; }
+  let html = `<span class="sched-item"><span class="sched-dot entry"></span>Entrada ${h.horaEntrada}</span>`;
+  if(h.tieneComida){
+    html += `<span class="sched-item"><span class="sched-dot lunch-out"></span>Sale a comer ${h.horaSalidaComida}</span>
+    <span class="sched-item"><span class="sched-dot lunch-in"></span>Regresa ${h.horaRegresoComida}</span>`;
+  }
+  html += `<span class="sched-item"><span class="sched-dot exit"></span>Salida ${h.horaSalida}</span>`;
+  document.getElementById('schedule-bar').innerHTML = html;
+}
+renderScheduleBar();
+
+/* ── UTILIDADES DE TIEMPO ── */
+function todayStr(){
+  const n=new Date();
+  return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
+}
+function nowStr(){
+  const n=new Date();
+  return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+}
+function toMin(t){ if(!t)return null; const[h,m]=t.split(':').map(Number); return h*60+m; }
+function minToStr(m){ return Math.floor(m/60)+'h '+(m%60+'').padStart(2,'0')+'m'; }
+
+/* Estado de un registro respetando si el empleado tiene o no comida */
+// Sin comida: 0=nada, 1=entrada hecha, 2=salida hecha
+// Con comida: 0=nada, 1=entrada hecha, 2=salidaComida hecha, 3=regresoComida hecho, 4=salida hecha
+function getStep(reg, tieneComida){
+  if(tieneComida === undefined){
+    // inferir del empleado
+    const emp = db.empleados.find(e=>e.codigo===reg?.codigo);
+    const h = getHorarioEmp(emp, reg?.fecha);
+    tieneComida = h ? h.tieneComida : true;
+  }
+  if(!reg || !reg.entrada) return 0;
+  if(!tieneComida){
+    if(!reg.salida) return 1;
+    return 2;
+  }
+  // Si entró después de la hora de regreso de comida, saltar pasos de comida
+  const emp2 = db.empleados.find(e=>e.codigo===reg.codigo);
+  const h2 = getHorarioEmp(emp2, reg.fecha);
+  const horaRegreso = h2?.horaRegresoComida || '15:00';
+  const entroTarde = reg.entrada && toMin(reg.entrada) >= toMin(horaRegreso);
+  if(entroTarde){
+    if(!reg.salida) return 3; // saltar directo a esperar salida
+    return 4;
+  }
+  if(!reg.salidaComida) return 1;
+  if(!reg.regresoComida) return 2;
+  if(!reg.salida) return 3;
+  return 4;
+}
+
+/* Puntualidad para un chequeo concreto */
+function puntualidad(hora, horaRef, tolOv){
+  if(!hora) return null;
+  const diff = toMin(hora) - toMin(horaRef);
+  const tol  = (tolOv!=null) ? tolOv : db.config.tolerancia;
+  if(diff <= tol) return {txt:'A tiempo', cls:'badge-success'};
+  return {txt:'Tarde ('+(diff)+'min)', cls:'badge-amber'};
+}
+
+function puntualidadEntrada(hora, emp, fecha){
+  const h = getHorarioEmp(emp, fecha);
+  return puntualidad(hora, h?.horaEntrada || '09:00', tolDe(h));
+}
+function puntualidadRegreso(hora, emp, fecha){
+  const h = getHorarioEmp(emp, fecha);
+  return puntualidad(hora, h?.horaRegresoComida || '15:00', tolDe(h));
+}
+
+/* Horas netas trabajadas (resta comida) */
+function hrsNetas(reg){
+  if(!reg || !reg.entrada || !reg.salida) return '—';
+  let total = toMin(reg.salida) - toMin(reg.entrada);
+  if(reg.salidaComida && reg.regresoComida){
+    total -= (toMin(reg.regresoComida) - toMin(reg.salidaComida));
+  }
+  if(total < 0) return '—';
+  return minToStr(total);
+}
+
+function fmtTime(t){ return t||'—'; }
+
+/* ── TECLADO ── */
+function updateDots(){
+  for(let i=0;i<4;i++)
+    document.getElementById('d'+i).classList.toggle('filled', i < codigoIngresado.length);
+
+  const emp = db.empleados.find(e=>e.codigo===codigoIngresado && empSede(e)===tabletSede());
+  const prev = document.getElementById('emp-preview');
+
+  if(emp){
+    prev.textContent = '✓ '+emp.nombre;
+    showEmpStatus(emp);
+  } else {
+    prev.textContent = codigoIngresado.length===4 ? 'Código no encontrado' : '';
+    hideEmpStatus();
+  }
+}
+
+function showEmpStatus(emp){
+  const hoy = todayStr();
+  const reg = db.registros.find(r=>r.fecha===hoy && r.codigo===emp.codigo);
+  const h = getHorarioEmp(emp);
+  const tieneComida = h ? h.tieneComida : true;
+  const maxStep = tieneComida ? 4 : 2;
+  const step = getStep(reg, tieneComida);
+
+  const chips = document.getElementById('status-chips');
+  const hint  = document.getElementById('next-hint');
+  chips.style.display='flex';
+
+  let stepDefs = [{key:'entrada', label:'Entrada', val:reg?.entrada}];
+  if(tieneComida){
+    stepDefs.push({key:'salidaComida',  label:'Sale a comer',      val:reg?.salidaComida});
+    stepDefs.push({key:'regresoComida', label:'Regresa de comida', val:reg?.regresoComida});
+  }
+  stepDefs.push({key:'salida', label:'Salida', val:reg?.salida});
+
+  chips.innerHTML = stepDefs.map((s,i)=>{
+    const done   = !!s.val;
+    const active = (i===step) && step<maxStep;
+    const cls    = done?'done': active?'active-now':'pending';
+    const icon   = done?'ti-check': active?'ti-arrow-right':'ti-clock';
+    return `<span class="chip ${cls}"><i class="ti ${icon}"></i>${s.label}${done?' '+s.val:''}</span>`;
+  }).join('');
+
+  const nextLabels = tieneComida
+    ? ['Registra tu entrada','Sale a tu hora de comida','Regresa de comida','Registra tu salida','¡Jornada completa!']
+    : ['Registra tu entrada','Registra tu salida','¡Jornada completa!'];
+  hint.textContent = step < maxStep ? '→ Siguiente: '+nextLabels[step] : '✓ Jornada completa';
+  hint.classList.add('visible');
+
+  // Actualizar barra de horarios según este empleado
+  renderScheduleBar(emp);
+}
+
+function hideEmpStatus(){
+  document.getElementById('status-chips').style.display='none';
+  document.getElementById('next-hint').classList.remove('visible');
+}
+
+/* ── AUDIO ── */
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// Sonido de tecla: clic suave tipo mecanismo de reloj
+function soundKey(){
+  try{
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  } catch(e){}
+}
+
+// Campana de éxito: dos tonos ascendentes (ding-dong)
+function soundSuccess(){
+  try{
+    const ctx = getAudioCtx();
+    [[880, 0], [1320, 0.18]].forEach(([freq, delay]) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+      gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.6);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.65);
+    });
+  } catch(e){}
+}
+
+// Sonido de error: tono descendente breve
+function soundError(){
+  try{
+    const ctx = getAudioCtx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.18);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+  } catch(e){}
+}
+
+function numPress(n){ if(codigoIngresado.length<4){ codigoIngresado+=n; soundKey(); updateDots(); } }
+function numDel(){ codigoIngresado=codigoIngresado.slice(0,-1); soundKey(); updateDots(); }
+function numClear(){ codigoIngresado=''; updateDots(); hideEmpStatus(); }
+
+/* ── REGISTRAR ── */
+function registrar(accion){
+  if(codigoIngresado.length<4){ showToast('Ingresa tu código de 4 dígitos','error'); return; }
+  const emp = db.empleados.find(e=>e.codigo===codigoIngresado);
+  if(!emp){ showToast('Código no encontrado','error'); numClear(); return; }
+  if(empSede(emp)!==tabletSede()){ soundError(); showToast('Ese código es de otra sede','error'); numClear(); return; }
+
+  // FIX DESFASE: usar fecha/hora LOCAL del dispositivo (no UTC)
+  const ahora   = new Date();
+  const hoy     = ahora.getFullYear()+'-'+(String(ahora.getMonth()+1).padStart(2,'0'))+'-'+String(ahora.getDate()).padStart(2,'0');
+  const hora    = String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0');
+
+  const h = getHorarioEmp(emp);
+  const tieneComida = h ? h.tieneComida : true;
+  const maxStep = tieneComida ? 4 : 2;
+
+  let reg = db.registros.find(r=>r.fecha===hoy && r.codigo===emp.codigo);
+  if(!reg){ reg={fecha:hoy,codigo:emp.codigo,nombre:emp.nombre,sede:empSede(emp),entrada:null,salidaComida:null,regresoComida:null,salida:null}; db.registros.push(reg); }
+
+  const step = getStep(reg, tieneComida);
+
+  if(accion==='entrada'){
+    if(step===0){
+      reg.entrada = hora;
+      const p = puntualidadEntrada(hora, emp);
+      soundSuccess();
+      showToast('✓ Entrada — '+emp.nombre+' · '+p.txt, p.cls==='badge-success'?'success':'warning');
+    } else if(tieneComida && step===2){
+      reg.regresoComida = hora;
+      const p = puntualidadRegreso(hora, emp);
+      soundSuccess();
+      showToast('✓ Regreso de comida — '+emp.nombre+' · '+p.txt, p.cls==='badge-success'?'success':'warning');
+    } else if(tieneComida && step===1){
+      soundError(); showToast('Primero registra tu salida a comer','error'); return;
+    } else if(tieneComida && step===3){
+      soundError(); showToast('Ya registraste tu regreso de comida','error'); return;
+    } else {
+      soundError(); showToast('Tu jornada ya está completa','error'); return;
+    }
+  } else {
+    if(step===0){
+      soundError(); showToast('Primero registra tu entrada','error'); return;
+    } else if(tieneComida && step===1){
+      reg.salidaComida = hora;
+      soundSuccess();
+      showToast('✓ Salida a comer — '+emp.nombre+', ¡buen provecho!','success');
+    } else if(tieneComida && step===2){
+      soundError(); showToast('Primero registra tu regreso de comida','error'); return;
+    } else if(step === (tieneComida ? 3 : 1)){
+      reg.salida = hora;
+      const p = puntualidad(hora, h?.horaSalida||'18:00', tolDe(h));
+      soundSuccess();
+      showToast('✓ Salida registrada — '+emp.nombre+' · '+p.txt,'success');
+    } else {
+      soundError(); showToast('Tu jornada ya está completa','error'); return;
+    }
+  }
+
+  saveDB(db);
+  updateDots();
+  setTimeout(()=>{ numClear(); hideEmpStatus(); }, 2200);
+}
+
+/* ── TAB HOY ── */
+function renderHoy(){
+  const hoy  = todayStr();
+  const regs = db.registros.filter(r=>r.fecha===hoy);
+  let presentes=0,ausentes=0,retardos=0;
+
+  const rows = db.empleados.filter(sedeOkAdmin).map(emp=>{
+    const reg = regs.find(r=>r.codigo===emp.codigo);
+    const h = getHorarioEmp(emp);
+    const tieneComida = h ? h.tieneComida : true;
+    const step = getStep(reg, tieneComida);
+    if(reg&&reg.entrada){ presentes++;
+      if(puntualidadEntrada(reg.entrada,emp)?.cls==='badge-amber'||
+         (reg.regresoComida&&puntualidadRegreso(reg.regresoComida,emp)?.cls==='badge-amber')) retardos++;
+    } else if(esLaboral(h,hoy)) ausentes++;
+
+    const stBadge = tieneComida
+      ? ['Sin registro','Presente','En comida','Regresó','Completo']
+      : ['Sin registro','Presente','Completo'];
+    const stCls = tieneComida
+      ? ['badge-gray','badge-blue','badge-amber','badge-blue','badge-success']
+      : ['badge-gray','badge-blue','badge-success'];
+
+    const pe = reg?.entrada ? puntualidadEntrada(reg.entrada,emp) : null;
+    const pr = reg?.regresoComida ? puntualidadRegreso(reg.regresoComida,emp) : null;
+    const horNombre = h?.nombre||'—';
+
+    const regIdx = reg ? db.registros.findIndex(r=>r.fecha===hoy&&r.codigo===emp.codigo) : -1;
+    return `<tr>
+      <td>${emp.nombre}<br><span style="font-size:11px;color:var(--text2)">${adminSede?'':SEDES[empSede(emp)]+' · '}${horNombre}</span></td>
+      <td><code>${emp.codigo}</code></td>
+      <td>${fmtTime(reg?.entrada)}${pe?` <span class="badge ${pe.cls}" style="margin-left:4px">${pe.txt}</span>`:''}</td>
+      <td>${tieneComida?fmtTime(reg?.salidaComida):'N/A'}</td>
+      <td>${tieneComida?(fmtTime(reg?.regresoComida)+(pr?` <span class="badge ${pr.cls}" style="margin-left:4px">${pr.txt}</span>`:'')):'N/A'}</td>
+      <td>${fmtTime(reg?.salida)}</td>
+      <td>${(step===0&&!esLaboral(h,hoy))?'<span class="badge badge-gray">Descanso</span>':`<span class="badge ${stCls[step]}">${stBadge[step]}</span>`}</td>
+      <td>${regIdx>=0?`<button class="btn-icon del" style="font-size:14px" onclick="openDelReg(${regIdx})" title="Editar/borrar registro"><i class="ti ti-pencil"></i></button>`:''}</td>
+    </tr>`;
+  });
+  document.getElementById('today-tbody').innerHTML = rows.join('');
+  document.getElementById('metrics-grid').innerHTML = `
+    <div class="metric-card"><div class="metric-val" style="color:var(--success)">${presentes}</div><div class="metric-lbl">Presentes</div></div>
+    <div class="metric-card"><div class="metric-val" style="color:var(--danger)">${ausentes}</div><div class="metric-lbl">Ausentes</div></div>
+    <div class="metric-card"><div class="metric-val" style="color:var(--amber)">${retardos}</div><div class="metric-lbl">Con retardo</div></div>`;
+}
+
+/* ── TAB REPORTES ── */
+function fillRepFilter(){
+  document.getElementById('rep-emp').innerHTML='<option value="">Todos los empleados</option>'+
+    db.empleados.filter(sedeOkAdmin).map(e=>`<option value="${e.codigo}">${e.nombre}</option>`).join('');
+  const now=new Date();
+  document.getElementById('rep-mes').innerHTML=Array.from({length:6},(_,i)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const lbl=d.toLocaleDateString('es-MX',{year:'numeric',month:'long'});
+    return `<option value="${val}">${lbl}</option>`;
+  }).join('');
+}
+
+function renderReportes(){
+  const mes=document.getElementById('rep-mes').value;
+  const empFil=document.getElementById('rep-emp').value;
+  const regsM=db.registros.filter(r=>r.fecha.startsWith(mes));
+  const [y,m]=mes.split('-').map(Number);
+  const diasMes=new Date(y,m,0).getDate();
+  const emps=(empFil?db.empleados.filter(e=>e.codigo===empFil):db.empleados).filter(sedeOkAdmin);
+  const hoyS=todayStr();
+
+  document.getElementById('rep-tbody').innerHTML=emps.map(emp=>{
+    const re=regsM.filter(r=>r.codigo===emp.codigo);
+    const ast=re.filter(r=>r.entrada).length;
+    let dl=0;
+    for(let d=1;d<=diasMes;d++){
+      const f=mes+'-'+String(d).padStart(2,'0');
+      if(f>hoyS) break;
+      if(f===hoyS && !re.some(r=>r.fecha===f&&r.entrada)) continue;
+      if(esLaboral(getHorarioEmp(emp,f),f)) dl++;
+    }
+    const aus=Math.max(0,dl-ast);
+    const retE=re.filter(r=>r.entrada&&puntualidadEntrada(r.entrada,emp,r.fecha)?.cls==='badge-amber').length;
+    const retR=re.filter(r=>r.regresoComida&&puntualidadRegreso(r.regresoComida,emp,r.fecha)?.cls==='badge-amber').length;
+    const hrsArr=re.filter(r=>r.entrada&&r.salida).map(r=>{
+      let t=toMin(r.salida)-toMin(r.entrada);
+      if(r.salidaComida&&r.regresoComida) t-=(toMin(r.regresoComida)-toMin(r.salidaComida));
+      return t;
+    });
+    const promH=hrsArr.length?Math.round(hrsArr.reduce((a,b)=>a+b,0)/hrsArr.length):null;
+    return `<tr><td>${emp.nombre}</td>
+      <td><span class="badge badge-success">${ast}</span></td>
+      <td><span class="badge badge-danger">${aus}</span></td>
+      <td><span class="badge badge-amber">${retE}</span></td>
+      <td><span class="badge badge-amber">${retR}</span></td>
+      <td>${promH!==null?minToStr(promH):'—'}</td></tr>`;
+  }).join('');
+
+  const det=regsM.filter(r=>(!empFil||r.codigo===empFil)&&(!adminSede||regSede(r)===adminSede)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  document.getElementById('det-tbody').innerHTML=det.length
+    ?det.map(r=>{
+        const pe=r.entrada?puntualidadEntrada(r.entrada,empDe(r.codigo),r.fecha):null;
+        const pr=r.regresoComida?puntualidadRegreso(r.regresoComida,empDe(r.codigo),r.fecha):null;
+        const stBadge=['Sin registro','Presente','En comida','Regresó','Completo'];
+        const stCls  =['badge-gray','badge-blue','badge-amber','badge-blue','badge-success'];
+        const step=getStep(r);
+        return `<tr>
+          <td>${r.fecha}</td><td>${r.nombre}${adminSede?'':'<br><span style="font-size:11px;color:var(--text2)">'+SEDES[regSede(r)]+'</span>'}</td>
+          <td>${fmtTime(r.entrada)}${pe?` <span class="badge ${pe.cls}">${pe.txt}</span>`:''}</td>
+          <td>${fmtTime(r.salidaComida)}</td>
+          <td>${fmtTime(r.regresoComida)}${pr?` <span class="badge ${pr.cls}">${pr.txt}</span>`:''}</td>
+          <td>${fmtTime(r.salida)}</td>
+          <td>${hrsNetas(r)}</td>
+          <td><span class="badge ${stCls[step]}">${stBadge[step]}</span></td>
+        </tr>`;
+      }).join('')
+    :'<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:22px">Sin registros en este período</td></tr>';
+}
+
+function exportCSV(){
+  const mes=document.getElementById('rep-mes').value;
+  const regs=db.registros.filter(r=>r.fecha.startsWith(mes)&&(!adminSede||regSede(r)===adminSede));
+  const lines=['Fecha,Empleado,Código,Entrada,Puntualidad Entrada,Salida Comida,Regreso Comida,Puntualidad Regreso,Salida,Horas Netas,Sede'];
+  regs.forEach(r=>{
+    const pe=r.entrada?puntualidadEntrada(r.entrada,empDe(r.codigo),r.fecha)?.txt:'';
+    const pr=r.regresoComida?puntualidadRegreso(r.regresoComida,empDe(r.codigo),r.fecha)?.txt:'';
+    lines.push([r.fecha,r.nombre,r.codigo,r.entrada||'',pe,r.salidaComida||'',r.regresoComida||'',pr,r.salida||'',hrsNetas(r),SEDES[regSede(r)]].join(','));
+  });
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'}));
+  a.download='asistencias_'+mes+(adminSede?'_'+adminSede:'')+'.csv';
+  a.click();
+  showToast('CSV exportado','success');
+}
+
+/* ── TAB EMPLEADOS ── */
+function renderEmpleados(){
+  document.getElementById('emp-list').innerHTML=db.empleados.map((emp,i)=>{
+    if(!sedeOkAdmin(emp)) return '';
+    const ini=emp.nombre.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    return `<div class="emp-card">
+      <div class="emp-avatar">${ini}</div>
+      <div style="flex:1;min-width:0">
+        <div class="emp-name">${emp.nombre}</div>
+        <div class="emp-code">Código: ${emp.codigo} · ${emp.dept} · ${SEDES[empSede(emp)]}</div>
+        <div class="emp-code" style="margin-top:2px;color:var(--accent)">🕐 ${getHorarioEmp(emp)?.nombre||'Sin horario'}</div>
+      </div>
+      <div class="emp-actions">
+        <button class="btn-icon edit" onclick="editEmp(${i})"><i class="ti ti-edit"></i></button>
+        <button class="btn-icon del"  onclick="delEmp(${i})"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('')||'<p style="color:var(--text2);font-size:14px;padding:8px 0">No hay empleados registrados.</p>';
+}
+
+/* ── TAB CONFIG ── */
+function loadConfig(){
+  document.getElementById('cfg-empresa').value    = db.config.empresa||'';
+  document.getElementById('cfg-tolerancia').value = db.config.tolerancia||15;
+  document.getElementById('cfg-sede').value = tabletSede();
+  renderHorariosList();
+}
+function saveConfig(){
+  db.config.empresa    = document.getElementById('cfg-empresa').value.trim()||'Mi Empresa';
+  db.config.tolerancia = parseInt(document.getElementById('cfg-tolerancia').value)||15;
+  saveDB(db);
+  document.getElementById('topbar-empresa').textContent=db.config.empresa;
+  showToast('Configuración guardada','success');
+}
+function renderHorariosList(){
+  const el=document.getElementById('horarios-list');
+  if(!el) return;
+  el.innerHTML=(db.horarios||[]).map((h,i)=>`
+    <div style="border:.5px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:500">${h.nombre}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">
+          Entrada ${h.horaEntrada} · Salida ${h.horaSalida}
+          ${h.tieneComida?` · Comida ${h.horaSalidaComida}–${h.horaRegresoComida}`:'· Sin comida'}
+          ${tolDe(h)!==null?` · Tol. ${tolDe(h)} min`:''}
+        </div>
+        ${h.sab&&h.sab.activo?`<div style="font-size:12px;color:var(--text2);margin-top:2px">Sábado: ${h.sab.horaEntrada}–${h.sab.horaSalida}${h.sab.tieneComida?` · descanso ${h.sab.horaSalidaComida}–${h.sab.horaRegresoComida}`:' · sin descanso'}</div>`:'<div style="font-size:12px;color:var(--text2);margin-top:2px">Sábado: no se trabaja</div>'}
+        <div style="font-size:11px;color:var(--accent);margin-top:3px">
+          ${db.empleados.filter(e=>e.horarioId===h.id).length} empleado(s)
+        </div>
+      </div>
+      <button class="btn-icon edit" onclick="editHorario(${i})"><i class="ti ti-edit"></i></button>
+      ${i>0?`<button class="btn-icon del" onclick="delHorario(${i})"><i class="ti ti-trash"></i></button>`:''}
+    </div>`
+  ).join('');
+}
+
+let editingHorIdx=null;
+function openAddHorario(){
+  editingHorIdx=null;
+  document.getElementById('modal-horario-title').textContent='Nuevo horario';
+  document.getElementById('hor-nombre').value='';
+  document.getElementById('hor-entrada').value='09:00';
+  document.getElementById('hor-salida').value='18:00';
+  document.getElementById('hor-tiene-comida').checked=true;
+  document.getElementById('hor-sal-comida').value='14:00';
+  document.getElementById('hor-reg-comida').value='15:00';
+  document.getElementById('hor-comida-wrap').style.display='block';
+  document.getElementById('hor-tol').value='';
+  document.getElementById('hor-sab-on').checked=false;
+  document.getElementById('hor-sab-wrap').style.display='none';
+  document.getElementById('hor-sab-comida-on').checked=false;
+  document.getElementById('hor-sab-comida-wrap').style.display='none';
+  document.getElementById('modal-horario').classList.add('open');
+}
+function editHorario(i){
+  editingHorIdx=i;
+  const h=db.horarios[i];
+  document.getElementById('modal-horario-title').textContent='Editar horario';
+  document.getElementById('hor-nombre').value=h.nombre;
+  document.getElementById('hor-entrada').value=h.horaEntrada;
+  document.getElementById('hor-salida').value=h.horaSalida;
+  document.getElementById('hor-tiene-comida').checked=!!h.tieneComida;
+  document.getElementById('hor-sal-comida').value=h.horaSalidaComida||'14:00';
+  document.getElementById('hor-reg-comida').value=h.horaRegresoComida||'15:00';
+  document.getElementById('hor-comida-wrap').style.display=h.tieneComida?'block':'none';
+  document.getElementById('hor-tol').value=(tolDe(h)!==null)?tolDe(h):'';
+  const sb=h.sab||{};
+  document.getElementById('hor-sab-on').checked=!!sb.activo;
+  document.getElementById('hor-sab-wrap').style.display=sb.activo?'block':'none';
+  document.getElementById('hor-sab-entrada').value=sb.horaEntrada||'08:50';
+  document.getElementById('hor-sab-salida').value=sb.horaSalida||'13:00';
+  document.getElementById('hor-sab-comida-on').checked=!!sb.tieneComida;
+  document.getElementById('hor-sab-comida-wrap').style.display=sb.tieneComida?'block':'none';
+  document.getElementById('hor-sab-sal-comida').value=sb.horaSalidaComida||'10:30';
+  document.getElementById('hor-sab-reg-comida').value=sb.horaRegresoComida||'11:00';
+  document.getElementById('modal-horario').classList.add('open');
+}
+document.getElementById('hor-sab-on').addEventListener('change',function(){
+  document.getElementById('hor-sab-wrap').style.display=this.checked?'block':'none';
+});
+document.getElementById('hor-sab-comida-on').addEventListener('change',function(){
+  document.getElementById('hor-sab-comida-wrap').style.display=this.checked?'block':'none';
+});
+document.getElementById('hor-tiene-comida').addEventListener('change',function(){
+  document.getElementById('hor-comida-wrap').style.display=this.checked?'block':'none';
+});
+function saveHorario(){
+  const nombre=document.getElementById('hor-nombre').value.trim();
+  if(!nombre){showToast('El nombre es obligatorio','error');return;}
+  const tieneComida=document.getElementById('hor-tiene-comida').checked;
+  const h={
+    id: editingHorIdx!==null ? db.horarios[editingHorIdx].id : 'h'+Date.now(),
+    nombre,
+    horaEntrada:document.getElementById('hor-entrada').value,
+    horaSalida:document.getElementById('hor-salida').value,
+    tieneComida,
+    horaSalidaComida:tieneComida?document.getElementById('hor-sal-comida').value:'',
+    horaRegresoComida:tieneComida?document.getElementById('hor-reg-comida').value:'',
+    tolerancia:(document.getElementById('hor-tol').value.trim()===''?null:parseInt(document.getElementById('hor-tol').value)),
+  };
+  if(document.getElementById('hor-sab-on').checked){
+    const sc=document.getElementById('hor-sab-comida-on').checked;
+    h.sab={activo:true,
+      horaEntrada:document.getElementById('hor-sab-entrada').value,
+      horaSalida:document.getElementById('hor-sab-salida').value,
+      tieneComida:sc,
+      horaSalidaComida:sc?document.getElementById('hor-sab-sal-comida').value:'',
+      horaRegresoComida:sc?document.getElementById('hor-sab-reg-comida').value:''};
+  } else if(editingHorIdx!==null && db.horarios[editingHorIdx].sab){
+    h.sab={...db.horarios[editingHorIdx].sab, activo:false};
+  }
+  if(editingHorIdx===null) db.horarios.push(h);
+  else db.horarios[editingHorIdx]=h;
+  saveDB(db);
+  if(window._fbSaveConfig) window._fbSaveConfig();
+  closeModalHorario();
+  renderHorariosList();
+  renderScheduleBar();
+  showToast(editingHorIdx===null?'Horario agregado':'Horario actualizado','success');
+}
+function delHorario(i){
+  const enUso=db.empleados.some(e=>e.horarioId===db.horarios[i].id);
+  if(enUso){showToast('Este horario está asignado a empleados','error');return;}
+  if(!confirm('¿Eliminar horario '+db.horarios[i].nombre+'?')) return;
+  db.horarios.splice(i,1); saveDB(db);
+  if(window._fbSaveConfig) window._fbSaveConfig();
+  renderHorariosList();
+  showToast('Horario eliminado','success');
+}
+function closeModalHorario(){ document.getElementById('modal-horario').classList.remove('open'); }
+document.getElementById('modal-horario').addEventListener('click',function(e){if(e.target===this)closeModalHorario();});
+
+/* ── BORRAR / EDITAR REGISTRO ── */
+let _delRegIdx = null;
+let _delRegCampo = null;
+function openDelReg(regIdx){
+  _delRegIdx = regIdx;
+  _delRegCampo = null;
+  const reg = db.registros[regIdx];
+  const emp = db.empleados.find(e=>e.codigo===reg.codigo);
+  const h = getHorarioEmp(emp);
+  const tieneComida = h ? h.tieneComida : true;
+
+  const campos = [
+    {key:'entrada',       label:'Entrada',            val:reg.entrada},
+    ...(tieneComida?[
+      {key:'salidaComida',  label:'Salida a comer',     val:reg.salidaComida},
+      {key:'regresoComida', label:'Regreso de comida',  val:reg.regresoComida},
+    ]:[]),
+    {key:'salida',        label:'Salida',              val:reg.salida},
+    {key:'TODO',          label:'⚠️ Borrar registro completo', val:'todos los campos'},
+  ];
+
+  document.getElementById('del-reg-campos').innerHTML = campos.map(campo=>`
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;border:.5px solid var(--border);border-radius:var(--radius-md);margin-bottom:6px;cursor:pointer">
+      <input type="radio" name="del-campo" value="${campo.key}" style="width:16px;height:16px"/>
+      <div>
+        <div style="font-size:13px;font-weight:500">${campo.label}</div>
+        <div style="font-size:12px;color:var(--text2)">${campo.val||'Sin registro'}</div>
+      </div>
+    </label>`).join('');
+  document.getElementById('modal-del-reg').classList.add('open');
+}
+function confirmarDelReg(){
+  const sel = document.querySelector('input[name="del-campo"]:checked');
+  if(!sel){showToast('Selecciona qué borrar','error');return;}
+  const campo = sel.value;
+  const reg = db.registros[_delRegIdx];
+  if(campo==='TODO'){
+    if(!confirm('¿Borrar el registro completo de '+reg.nombre+' del '+reg.fecha+'?')) return;
+    db.registros.splice(_delRegIdx,1);
+    // Borrar en Firebase
+    if(window._fbDeleteRegistro) window._fbDeleteRegistro(reg);
+  } else {
+    reg[campo] = null;
+    if(window._fbSaveRegistro) window._fbSaveRegistro(reg);
+  }
+  saveDB(db);
+  closeModalDelReg();
+  renderHoy();
+  showToast('Registro actualizado','success');
+}
+function closeModalDelReg(){ document.getElementById('modal-del-reg').classList.remove('open'); }
+document.getElementById('modal-del-reg').addEventListener('click',function(e){if(e.target===this)closeModalDelReg();});
+function changePass(){
+  const p1=document.getElementById('cfg-pass1').value;
+  const p2=document.getElementById('cfg-pass2').value;
+  const err=document.getElementById('pass-err');
+  if(!p1){err.textContent='Escribe una contraseña';return;}
+  if(p1!==p2){err.textContent='Las contraseñas no coinciden';return;}
+  db.config.adminPass=p1; saveDB(db);
+  document.getElementById('cfg-pass1').value='';
+  document.getElementById('cfg-pass2').value='';
+  err.textContent='';
+  showToast('Contraseña actualizada','success');
+}
+
+/* ── NAVEGACIÓN ── */
+function showScreen(name){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-'+name).classList.add('active'); }
+function switchTab(tab,btn){
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(tab==='hoy') renderHoy();
+  if(tab==='reportes'){fillRepFilter();renderReportes();}
+  if(tab==='empleados') renderEmpleados();
+  if(tab==='config') loadConfig();
+}
+function goAdmin(){ showScreen('login'); setTimeout(()=>document.getElementById('login-user').focus(),100); }
+function doLogin(){
+  const pass=document.getElementById('login-pass').value;
+  if(pass===db.config.adminPass){
+    document.getElementById('login-err').textContent='';
+    document.getElementById('login-pass').value='';
+    showScreen('admin'); renderHoy();
+    document.getElementById('topbar-empresa').textContent=db.config.empresa;
+  } else { document.getElementById('login-err').textContent='Contraseña incorrecta'; }
+}
+function logout(){ showScreen('checador'); }
+
+/* ── MODAL EMPLEADO ── */
+function fillHorarioSelect(selectedId){
+  const sel=document.getElementById('emp-horario');
+  sel.innerHTML=(db.horarios||[]).map(h=>`<option value="${h.id}"${h.id===selectedId?' selected':''}>${h.nombre}${h.tieneComida?'':' (sin comida)'}</option>`).join('');
+}
+function openAddEmp(){
+  editingEmpIdx=null;
+  document.getElementById('modal-emp-title').textContent='Nuevo empleado';
+  ['emp-nombre','emp-codigo','emp-dept'].forEach(id=>document.getElementById(id).value='');
+  fillHorarioSelect(db.horarios?.[0]?.id);
+  document.getElementById('emp-sede').value=adminSede||tabletSede();
+  document.getElementById('modal-emp').classList.add('open');
+  setTimeout(()=>document.getElementById('emp-nombre').focus(),100);
+}
+function editEmp(i){
+  editingEmpIdx=i;
+  const emp=db.empleados[i];
+  document.getElementById('modal-emp-title').textContent='Editar empleado';
+  document.getElementById('emp-nombre').value=emp.nombre;
+  document.getElementById('emp-codigo').value=emp.codigo;
+  document.getElementById('emp-dept').value=emp.dept;
+  fillHorarioSelect(emp.horarioId);
+  document.getElementById('emp-sede').value=empSede(emp);
+  document.getElementById('modal-emp').classList.add('open');
+}
+function saveEmp(){
+  const nombre=document.getElementById('emp-nombre').value.trim();
+  const codigo=document.getElementById('emp-codigo').value.trim();
+  const dept=document.getElementById('emp-dept').value.trim();
+  const horarioId=document.getElementById('emp-horario').value;
+  const sede=document.getElementById('emp-sede').value;
+  if(!nombre||!codigo){showToast('Nombre y código son obligatorios','error');return;}
+  if(!/^\d{4}$/.test(codigo)){showToast('El código debe ser exactamente 4 dígitos','error');return;}
+  const dup=db.empleados.findIndex(e=>e.codigo===codigo);
+  if(dup>=0&&dup!==editingEmpIdx){showToast('Ese código ya está en uso','error');return;}
+  if(editingEmpIdx===null) db.empleados.push({nombre,codigo,dept,horarioId,sede});
+  else db.empleados[editingEmpIdx]={nombre,codigo,dept,horarioId,sede};
+  saveDB(db); closeModal(); renderEmpleados();
+  showToast(editingEmpIdx===null?'Empleado agregado':'Empleado actualizado','success');
+}
+function delEmp(i){
+  if(!confirm('¿Eliminar a '+db.empleados[i].nombre+'?')) return;
+  db.empleados.splice(i,1); saveDB(db); renderEmpleados();
+  showToast('Empleado eliminado','success');
+}
+function closeModal(){ document.getElementById('modal-emp').classList.remove('open'); }
+
+/* ── TOAST ── */
+let toastTimer;
+function showToast(msg,type=''){
+  clearTimeout(toastTimer);
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(type?' '+type:'');
+  void t.offsetWidth; t.classList.add('show');
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+/* ── INIT ── */
+document.getElementById('topbar-empresa').textContent=db.config.empresa;
+document.getElementById('modal-emp').addEventListener('click',function(e){if(e.target===this)closeModal();});
+</script>
+
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp }      from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc,
+         collection, getDocs, onSnapshot,
+         query, where }       from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCDXTGuYdhyAMHxOv5TgqkFksdvqeq2mGc",
+  authDomain:        "checkin-isma-lab.firebaseapp.com",
+  projectId:         "checkin-isma-lab",
+  storageBucket:     "checkin-isma-lab.firebasestorage.app",
+  messagingSenderId: "587313854221",
+  appId:             "1:587313854221:web:3b740cecd4086a42d4a244"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const fs    = getFirestore(fbApp);
+
+/* ── Indicador conexión ── */
+function setOnline(ok){
+  let el = document.getElementById('conn-dot');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'conn-dot';
+    el.style.cssText = 'position:fixed;bottom:10px;right:12px;z-index:9999;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = ok ? '● Sincronizado' : '● Sin conexión';
+  el.style.background = ok ? 'rgba(29,158,117,.12)' : 'rgba(226,75,74,.12)';
+  el.style.color = ok ? '#1D9E75' : '#E24B4A';
+}
+
+/* ── CONFIG ── */
+async function fbLoadConfig(){
+  try{
+    const snap = await getDoc(doc(fs,'config','main'));
+    if(snap.exists()){
+      const data = snap.data();
+
+      // Detectar formato viejo (config plana con horaEntrada directo)
+      const esFormatoViejo = data.horaEntrada || data.horaSalidaComida || !data.config;
+
+      if(esFormatoViejo){
+        // Migrar formato viejo a nuevo
+        db.config = {
+          empresa:    data.empresa    || db.config.empresa,
+          tolerancia: data.tolerancia || db.config.tolerancia,
+          adminPass:  data.adminPass  || db.config.adminPass,
+        };
+        db.horarios = [{
+          id:'h1',
+          nombre:'Horario General',
+          horaEntrada:      data.horaEntrada       || '09:00',
+          horaSalidaComida: data.horaSalidaComida  || '14:00',
+          horaRegresoComida:data.horaRegresoComida || '15:00',
+          horaSalida:       data.horaSalida        || '18:00',
+          tieneComida: true
+        }];
+        // Subir formato nuevo a Firebase
+        await setDoc(doc(fs,'config','main'), {config: db.config, horarios: db.horarios});
+      } else {
+        db.config   = data.config   || db.config;
+        db.horarios = data.horarios || db.horarios;
+      }
+
+      saveDB(db);
+      document.getElementById('topbar-empresa').textContent = db.config.empresa;
+      renderScheduleBar();
+    } else {
+      await setDoc(doc(fs,'config','main'), {config: db.config, horarios: db.horarios});
+    }
+    setOnline(true);
+  } catch(e){ setOnline(false); }
+}
+
+window._fbSaveConfig = async function(){
+  try{ await setDoc(doc(fs,'config','main'), {config: db.config, horarios: db.horarios}); setOnline(true); }
+  catch(e){ setOnline(false); }
+};
+
+/* ── EMPLEADOS ── */
+async function fbLoadEmpleados(){
+  try{
+    const snap = await getDocs(collection(fs,'empleados'));
+    // Siempre sobreescribir con Firebase (fuente de verdad)
+    db.empleados = snap.docs.map(d=>d.data());
+    saveDB(db);
+    // Refrescar lista si está visible
+    if(document.getElementById('tab-empleados').classList.contains('active')) renderEmpleados();
+    setOnline(true);
+  } catch(e){ setOnline(false); }
+}
+
+window._fbSaveEmpleado = async function(emp){
+  try{ await setDoc(doc(fs,'empleados',emp.codigo), emp); setOnline(true); }
+  catch(e){ setOnline(false); }
+};
+
+window._fbDeleteEmpleado = async function(codigo){
+  try{ await deleteDoc(doc(fs,'empleados',codigo)); setOnline(true); }
+  catch(e){ setOnline(false); }
+};
+
+/* ── REGISTROS ── */
+window._fbDeleteRegistro = async function(reg){
+  try{ await deleteDoc(doc(fs,'registros', reg.fecha+'_'+reg.codigo)); setOnline(true); }
+  catch(e){ setOnline(false); }
+};
+window._fbSaveRegistro = async function(reg){
+  try{ await setDoc(doc(fs,'registros', reg.fecha+'_'+reg.codigo), reg); setOnline(true); }
+  catch(e){ setOnline(false); }
+};
+
+async function fbLoadRegistrosMes(mes){
+  try{
+    const q = query(collection(fs,'registros'),
+      where('fecha','>=',mes+'-01'), where('fecha','<=',mes+'-31'));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d=>{
+      const r=d.data();
+      const idx=db.registros.findIndex(x=>x.fecha===r.fecha&&x.codigo===r.codigo);
+      if(idx>=0) db.registros[idx]=r; else db.registros.push(r);
+    });
+    saveDB(db);
+    setOnline(true);
+  } catch(e){ setOnline(false); }
+}
+
+/* Escuchar registros de hoy en tiempo real */
+function fbListenHoy(){
+  const hoy = todayStr(); // usar fecha LOCAL, no UTC
+  const q   = query(collection(fs,'registros'), where('fecha','==',hoy));
+  onSnapshot(q, snap=>{
+    snap.docChanges().forEach(ch=>{
+      const r=ch.doc.data();
+      const idx=db.registros.findIndex(x=>x.fecha===r.fecha&&x.codigo===r.codigo);
+      if(idx>=0) db.registros[idx]=r; else db.registros.push(r);
+    });
+    saveDB(db);
+    if(document.getElementById('tab-hoy').classList.contains('active')) renderHoy();
+  }, ()=>setOnline(false));
+}
+
+/* ── PARCHAMOS funciones locales para que también llamen a Firebase ── */
+
+// saveConfig
+const _sc = saveConfig;
+saveConfig = function(){
+  _sc();
+  window._fbSaveConfig && window._fbSaveConfig();
+};
+
+// registrar: después de guardar localmente, sube el registro a Firebase
+const _reg = registrar;
+registrar = async function(accion){
+  // Capturar código antes de que se limpie
+  const cod = codigoIngresado;
+  _reg(accion);
+  const hoy = todayStr(); // usar fecha LOCAL, no UTC
+  const reg = db.registros.find(r=>r.fecha===hoy && r.codigo===cod);
+  if(reg) await window._fbSaveRegistro(reg);
+};
+
+// saveEmp
+const _se = saveEmp;
+saveEmp = async function(){
+  const codigo = document.getElementById('emp-codigo').value.trim();
+  _se();
+  const emp = db.empleados.find(e=>e.codigo===codigo);
+  if(emp) await window._fbSaveEmpleado(emp);
+};
+
+// delEmp
+const _de = delEmp;
+delEmp = async function(i){
+  const codigo = db.empleados[i]?.codigo;
+  _de(i);
+  if(codigo) await window._fbDeleteEmpleado(codigo);
+};
+
+// renderReportes: carga datos frescos de Firebase primero
+const _rr = renderReportes;
+renderReportes = async function(){
+  const mes = document.getElementById('rep-mes')?.value;
+  if(mes) await fbLoadRegistrosMes(mes);
+  _rr();
+};
+
+const _ff = fillRepFilter;
+fillRepFilter = async function(){
+  _ff();
+  const mes = document.getElementById('rep-mes')?.value;
+  if(mes) await fbLoadRegistrosMes(mes);
+  renderReportes();
+};
+
+/* ── RESPALDO: sube solo lo que NO existe en la nube ── */
+window.subirLocal = async function(){
+  const out = document.getElementById('respaldo-res');
+  out.textContent = 'Revisando...';
+  try{
+    let nr=0, ne=0, tr=db.registros.length, te=db.empleados.length;
+    for(const r of db.registros){
+      const ref = doc(fs,'registros', r.fecha+'_'+r.codigo);
+      const sn = await getDoc(ref);
+      if(!sn.exists()){ await setDoc(ref, r); nr++; }
+    }
+    for(const e of db.empleados){
+      const ref = doc(fs,'empleados', e.codigo);
+      const sn = await getDoc(ref);
+      if(!sn.exists()){ await setDoc(ref, e); ne++; }
+    }
+    out.style.color='#1D9E75';
+    out.textContent = '✓ Listo. Registros revisados: '+tr+' (subidos: '+nr+'). Empleados revisados: '+te+' (subidos: '+ne+').';
+    setOnline(true);
+  }catch(err){
+    out.style.color='#E24B4A';
+    out.textContent = 'No se pudo conectar. Revisa el internet de la tablet e intenta de nuevo.';
+    setOnline(false);
+  }
+};
+
+/* ── ARRANQUE ── */
+(async()=>{
+  await fbLoadConfig();
+  await fbLoadEmpleados();
+  // Cargar registros de hoy
+  const hoy = todayStr();
+  try{
+    const q = query(collection(fs,'registros'), where('fecha','==',hoy));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d=>{
+      const r=d.data();
+      const idx=db.registros.findIndex(x=>x.fecha===r.fecha&&x.codigo===r.codigo);
+      if(idx>=0) db.registros[idx]=r; else db.registros.push(r);
+    });
+    saveDB(db);
+  } catch(e){}
+  fbListenHoy();
+  setOnline(true);
+})();
+</script>
+</body>
+</html>
